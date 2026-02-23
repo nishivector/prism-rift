@@ -689,10 +689,15 @@
       for (const path of paths) {
         for (const receptor of state.receptors) {
           const toReceptor = receptor.position.clone().sub(path.start);
-          const dist = toReceptor.length();
-          const dot = toReceptor.normalize().dot(path.direction);
-          
-          if (dot > 0.95 && dist < 3 && path.colorName === receptor.userData.colorName) {
+          // Project receptor position onto the beam ray
+          const projLength = toReceptor.dot(path.direction);
+          // Only consider receptors in front of the beam
+          if (projLength > 0.1) {
+            // Find closest point on ray to receptor
+            const closestPoint = path.start.clone().add(path.direction.clone().multiplyScalar(projLength));
+            const perpDist = receptor.position.distanceTo(closestPoint);
+            
+            if (perpDist < 1.2 && path.colorName === receptor.userData.colorName) {
             // Only play sound if this is a new activation
             if (!receptor.userData.active) {
               playBeamSound(receptor.userData.colorName);
@@ -713,6 +718,7 @@
             const conn = new THREE.Line(connGeom, connMat);
             scene.add(conn);
             state.beams.push(conn);
+          }
           }
         }
       }
