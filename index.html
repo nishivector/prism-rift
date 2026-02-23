@@ -33,7 +33,7 @@
     #startScreen {
       position: fixed;
       inset: 0;
-      background: linear-gradient(180deg, rgba(5,5,15,0.88) 0%, rgba(0,0,5,0.65) 100%);
+      background: linear-gradient(180deg, rgba(5,0,15,0.8) 0%, rgba(2,0,8,0.5) 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -111,6 +111,25 @@
       letter-spacing: 0.3em;
     }
     
+    #timer {
+      color: #fff;
+      font-size: 28px;
+      font-weight: bold;
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 20px rgba(255,255,255,0.8), 0 0 40px rgba(255,255,255,0.4);
+      transition: color 0.3s ease, text-shadow 0.3s ease;
+    }
+    
+    #timer.warning {
+      color: #ffaa00;
+      text-shadow: 0 0 20px rgba(255,170,0,0.8), 0 0 40px rgba(255,170,0,0.4);
+    }
+    
+    #timer.danger {
+      color: #ff3333;
+      text-shadow: 0 0 20px rgba(255,51,51,0.8), 0 0 40px rgba(255,51,51,0.4);
+    }
+    
     #instruction {
       color: rgba(200,200,255,0.5);
       font-size: 12px;
@@ -161,6 +180,51 @@
       border-color: rgba(255,255,255,0.6);
     }
     
+    #gameOverOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 25;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease-out;
+    }
+    
+    #gameOverOverlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    
+    #gameOverOverlay h2 {
+      color: #ff3333;
+      font-size: 2.5rem;
+      font-weight: 300;
+      letter-spacing: 0.3em;
+      margin-bottom: 1em;
+      text-shadow: 0 0 30px rgba(255,51,51,0.6);
+    }
+    
+    #gameOverOverlay .retryBtn {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.8);
+      padding: 12px 30px;
+      font-family: inherit;
+      font-size: 14px;
+      letter-spacing: 0.15em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    #gameOverOverlay .retryBtn:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.6);
+    }
+    
     .github-link {
       position: fixed;
       bottom: 16px;
@@ -188,12 +252,18 @@
   
   <div id="ui">
     <div id="level">LEVEL 1</div>
-    <div id="instruction">Drag prisms to align beams</div>
+    <div id="timer">90</div>
+    <div id="instruction">Tap & drag prisms to rotate them • Align beams to matching receptors</div>
   </div>
   
   <div id="successOverlay">
     <h2>RESTORED</h2>
     <button class="nextBtn">NEXT LEVEL</button>
+  </div>
+  
+  <div id="gameOverOverlay">
+    <h2>TIME'S UP</h2>
+    <button class="retryBtn">TRY AGAIN</button>
   </div>
   
   <a href="https://github.com/nishivector/prism-rift" target="_blank" class="github-link">GitHub ↗</a>
@@ -205,13 +275,18 @@
     const state = {
       level: 1,
       isPlaying: false,
+      isTitleScreen: true,
       prisms: [],
       receptors: [],
       beams: [],
       selectedPrism: null,
       mousePos: new THREE.Vector2(),
       raycaster: new THREE.Raycaster(),
-      clock: new THREE.Clock()
+      clock: new THREE.Clock(),
+      timeRemaining: 90,
+      timerInterval: null,
+      titlePrism: null,
+      titleBeams: []
     };
     
     // Colors
@@ -277,6 +352,66 @@
       mesh.rotation.x = Math.PI / 2;
       mesh.userData.isPrism = true;
       return mesh;
+    }
+    
+    // Create title screen prism (Icosahedron, wireframe/semi-transparent)
+    function createTitlePrism() {
+      const geometry = new THREE.IcosahedronGeometry(1.5, 0);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: 0xaaddff,
+        metalness: 0.2,
+        roughness: 0.1,
+        transmission: 0.7,
+        thickness: 1,
+        transparent: true,
+        opacity: 0.6,
+        emissive: 0x2244aa,
+        emissiveIntensity: 0.3,
+        wireframe: false
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      
+      // Add wireframe overlay
+      const wireGeom = new THREE.IcosahedronGeometry(1.55, 0);
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0x88ccff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.4
+      });
+      const wire = new THREE.Mesh(wireGeom, wireMat);
+      mesh.add(wire);
+      
+      mesh.position.set(0, 0, 0);
+      return mesh;
+    }
+    
+    // Create title screen light bands
+    function createTitleBeams() {
+      const beams = [];
+      const colors = ['red', 'green', 'blue', 'violet'];
+      const angles = [Math.PI / 4, Math.PI / 2, -Math.PI / 4, -Math.PI / 2];
+      
+      colors.forEach((color, i) => {
+        const geometry = new THREE.PlaneGeometry(0.08, 6);
+        const material = new THREE.MeshBasicMaterial({
+          color: COLORS[color],
+          transparent: true,
+          opacity: 0.7,
+          side: THREE.DoubleSide
+        });
+        const beam = new THREE.Mesh(geometry, material);
+        
+        // Position starting from center
+        beam.position.set(0, 0, 0);
+        
+        // Rotate to point outward
+        beam.rotation.z = angles[i];
+        
+        beams.push({ mesh: beam, angle: angles[i], speed: 0.3 + i * 0.1, offset: i * 0.5 });
+      });
+      
+      return beams;
     }
     
     // Create a receptor
@@ -362,6 +497,14 @@
       state.receptors = [];
       state.beams = [];
       
+      // Clear title screen elements
+      if (state.titlePrism) {
+        scene.remove(state.titlePrism);
+        state.titlePrism = null;
+      }
+      state.titleBeams.forEach(b => scene.remove(b.mesh));
+      state.titleBeams = [];
+      
       const config = levels[Math.min(levelNum - 1, levels.length - 1)];
       
       // Create light source
@@ -404,6 +547,81 @@
       }
       
       document.getElementById('level').textContent = `LEVEL ${levelNum}`;
+    }
+    
+    // Build title screen
+    function buildTitleScreen() {
+      // Create title prism
+      state.titlePrism = createTitlePrism();
+      scene.add(state.titlePrism);
+      
+      // Create title beams
+      state.titleBeams = createTitleBeams();
+      state.titleBeams.forEach(b => scene.add(b.mesh));
+    }
+    
+    // Timer functions
+    function startTimer() {
+      state.timeRemaining = 90;
+      updateTimerDisplay();
+      
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      
+      state.timerInterval = setInterval(() => {
+        state.timeRemaining--;
+        updateTimerDisplay();
+        
+        if (state.timeRemaining <= 0) {
+          clearInterval(state.timerInterval);
+          gameOver();
+        }
+      }, 1000);
+    }
+    
+    function stopTimer() {
+      if (state.timerInterval) {
+        clearInterval(state.timerInterval);
+        state.timerInterval = null;
+      }
+    }
+    
+    function updateTimerDisplay() {
+      const timerEl = document.getElementById('timer');
+      timerEl.textContent = state.timeRemaining;
+      
+      timerEl.classList.remove('warning', 'danger');
+      if (state.timeRemaining < 10) {
+        timerEl.classList.add('danger');
+      } else if (state.timeRemaining < 30) {
+        timerEl.classList.add('warning');
+      }
+    }
+    
+    function gameOver() {
+      state.isPlaying = false;
+      stopTimer();
+      document.getElementById('gameOverOverlay').classList.add('visible');
+    }
+    
+    // Play beam connection sound
+    function playBeamSound(colorName) {
+      if (typeof Tone === 'undefined') return;
+      
+      const notes = {
+        red: 'E4',
+        green: 'G4',
+        blue: 'B4',
+        violet: 'D5'
+      };
+      
+      try {
+        const synth = new Tone.Synth({
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.02, decay: 0.3, sustain: 0.1, release: 0.5 }
+        }).toDestination();
+        
+        synth.triggerAttackRelease(notes[colorName] || 'C5', '8n');
+      } catch(e) {}
     }
     
     // Calculate light paths
@@ -475,6 +693,10 @@
           const dot = toReceptor.normalize().dot(path.direction);
           
           if (dot > 0.95 && dist < 3 && path.colorName === receptor.userData.colorName) {
+            // Only play sound if this is a new activation
+            if (!receptor.userData.active) {
+              playBeamSound(receptor.userData.colorName);
+            }
             receptor.userData.active = true;
             receptor.material.emissiveIntensity = 1.5;
             
@@ -644,8 +866,10 @@
       startScreen.classList.add('hidden');
       ui.classList.add('visible');
       state.isPlaying = true;
+      state.isTitleScreen = false;
       state.level = 1;
       buildLevel(state.level);
+      startTimer();
     }
     
     // Next level button
@@ -653,6 +877,14 @@
       successOverlay.classList.remove('visible');
       state.level++;
       buildLevel(state.level);
+      startTimer();
+    });
+    
+    // Retry button
+    document.querySelector('.retryBtn').addEventListener('pointerdown', () => {
+      document.getElementById('gameOverOverlay').classList.remove('visible');
+      buildLevel(state.level);
+      startTimer();
     });
     
     // Resize handler
@@ -667,6 +899,20 @@
       requestAnimationFrame(animate);
       
       const t = state.clock.getElapsedTime();
+      
+      // Title screen animations
+      if (state.isTitleScreen && state.titlePrism) {
+        state.titlePrism.rotation.y = t * 0.3;
+        state.titlePrism.rotation.x = Math.sin(t * 0.2) * 0.2;
+        state.titlePrism.position.y = Math.sin(t * 0.5) * 0.2;
+        
+        // Animate title beams
+        state.titleBeams.forEach((beam, i) => {
+          const drift = Math.sin(t * beam.speed + beam.offset) * 0.5;
+          beam.mesh.position.x = Math.cos(beam.angle) * (2 + drift);
+          beam.mesh.position.y = Math.sin(beam.angle) * (2 + drift);
+        });
+      }
       
       // Idle animations for prisms
       state.prisms.forEach((prism, i) => {
@@ -692,7 +938,7 @@
     }
     
     // Initial build for start screen
-    buildLevel(1);
+    buildTitleScreen();
     animate();
   </script>
 </body>
