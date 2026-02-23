@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Prism Rift</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/15.1.22/Tone.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      overflow: hidden;
+      background: #000;
+      font-family: 'Courier New', monospace;
+      touch-action: none;
+    }
+    
+    #gameCanvas {
+      display: block;
+      position: fixed;
+      inset: 0;
+      touch-action: none;
+    }
+    
+    #startScreen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(5,5,15,0.88) 0%, rgba(0,0,5,0.65) 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: opacity 0.8s ease-out;
+    }
+    
+    #startScreen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    #startScreen h1 {
+      color: #fff;
+      font-size: clamp(2rem, 8vw, 4rem);
+      font-weight: 300;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 0.5em;
+      animation: titleReveal 1.5s ease-out forwards;
+      text-shadow: 0 0 30px rgba(255,255,255,0.5);
+    }
+    
+    @keyframes titleReveal {
+      from { opacity: 0; letter-spacing: 0.4em; transform: translateY(-15px); }
+      to { opacity: 1; letter-spacing: 0.15em; transform: translateY(0); }
+    }
+    
+    #startScreen .tagline {
+      color: rgba(255,255,255,0.6);
+      font-size: clamp(0.9rem, 3vw, 1.2rem);
+      margin-bottom: 3em;
+      animation: fadeIn 1s ease-out 0.5s forwards;
+      opacity: 0;
+    }
+    
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+    
+    #startScreen .hint {
+      color: rgba(180,180,255,0.4);
+      font-size: clamp(0.7rem, 2.5vw, 0.9rem);
+      animation: pulse 2s ease-in-out infinite, fadeIn 1s ease-out 1s forwards;
+      opacity: 0;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.7; }
+    }
+    
+    #ui {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      transition: opacity 0.5s ease-out;
+    }
+    
+    #ui.visible {
+      opacity: 1;
+    }
+    
+    #level {
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      letter-spacing: 0.3em;
+    }
+    
+    #instruction {
+      color: rgba(200,200,255,0.5);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+    }
+    
+    #successOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease-out;
+    }
+    
+    #successOverlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    
+    #successOverlay h2 {
+      color: #fff;
+      font-size: 2rem;
+      font-weight: 300;
+      letter-spacing: 0.2em;
+      margin-bottom: 1em;
+    }
+    
+    #successOverlay .nextBtn {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.8);
+      padding: 12px 30px;
+      font-family: inherit;
+      font-size: 14px;
+      letter-spacing: 0.15em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    #successOverlay .nextBtn:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.6);
+    }
+    
+    .github-link {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      color: rgba(255,255,255,0.3);
+      font-size: 12px;
+      text-decoration: none;
+      font-family: monospace;
+      z-index: 100;
+    }
+    
+    .github-link:hover {
+      color: rgba(255,255,255,0.6);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  
+  <div id="startScreen">
+    <h1>Prism Rift</h1>
+    <p class="tagline">Restore the shattered palace of light</p>
+    <p class="hint">Click anywhere to begin</p>
+  </div>
+  
+  <div id="ui">
+    <div id="level">LEVEL 1</div>
+    <div id="instruction">Drag prisms to align beams</div>
+  </div>
+  
+  <div id="successOverlay">
+    <h2>RESTORED</h2>
+    <button class="nextBtn">NEXT LEVEL</button>
+  </div>
+  
+  <a href="https://github.com/nishivector/prism-rift" target="_blank" class="github-link">GitHub ↗</a>
+
+  <script type="module">
+    import * as THREE from 'three';
+    
+    // Game state
+    const state = {
+      level: 1,
+      isPlaying: false,
+      prisms: [],
+      receptors: [],
+      beams: [],
+      selectedPrism: null,
+      mousePos: new THREE.Vector2(),
+      raycaster: new THREE.Raycaster(),
+      clock: new THREE.Clock()
+    };
+    
+    // Colors
+    const COLORS = {
+      white: 0xffffff,
+      red: 0xff3366,
+      green: 0x33ff99,
+      blue: 0x3399ff,
+      violet: 0xaa33ff
+    };
+    
+    const COLOR_NAMES = ['red', 'green', 'blue', 'violet'];
+    
+    // Scene setup
+    const canvas = document.getElementById('gameCanvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    
+    // Camera
+    let camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    applyCameraForAspect();
+    
+    function applyCameraForAspect() {
+      const aspect = window.innerWidth / window.innerHeight;
+      if (aspect < 1) {
+        camera.position.set(0, 12, 14);
+        camera.fov = 70;
+      } else {
+        camera.position.set(0, 8, 18);
+        camera.fov = 50;
+      }
+      camera.lookAt(0, 0, 0);
+      camera.updateProjectionMatrix();
+    }
+    
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0x222233, 0.5);
+    scene.add(ambientLight);
+    
+    const pointLight = new THREE.PointLight(0xffffff, 1, 50);
+    pointLight.position.set(0, 10, 0);
+    scene.add(pointLight);
+    
+    // Create a prism geometry
+    function createPrism() {
+      const geometry = new THREE.CylinderGeometry(0.8, 0.8, 2, 6);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        metalness: 0.1,
+        roughness: 0.1,
+        transmission: 0.9,
+        thickness: 1,
+        transparent: true,
+        opacity: 0.8,
+        emissive: 0x111122,
+        emissiveIntensity: 0.2
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.rotation.x = Math.PI / 2;
+      mesh.userData.isPrism = true;
+      return mesh;
+    }
+    
+    // Create a receptor
+    function createReceptor(colorName) {
+      const geometry = new THREE.TorusGeometry(0.6, 0.15, 8, 16);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: COLORS[colorName],
+        emissive: COLORS[colorName],
+        emissiveIntensity: 0.5,
+        metalness: 0.5,
+        roughness: 0.3
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.isReceptor = true;
+      mesh.userData.colorName = colorName;
+      mesh.userData.active = false;
+      return mesh;
+    }
+    
+    // Create a light beam
+    function createBeam(startPos, direction, color) {
+      const length = 20;
+      const geometry = new THREE.CylinderGeometry(0.03, 0.03, length, 8);
+      geometry.translate(0, length / 2, 0);
+      geometry.rotateX(Math.PI / 2);
+      
+      const material = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.9
+      });
+      
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(startPos);
+      mesh.lookAt(startPos.clone().add(direction));
+      
+      // Add glow
+      const glowGeometry = new THREE.CylinderGeometry(0.1, 0.1, length, 8);
+      glowGeometry.translate(0, length / 2, 0);
+      glowGeometry.rotateX(Math.PI / 2);
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.15
+      });
+      const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+      mesh.add(glowMesh);
+      
+      return mesh;
+    }
+    
+    // Create initial light source
+    function createLightSource() {
+      const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 1
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(-6, 0, 0);
+      return mesh;
+    }
+    
+    // Level configurations
+    const levels = [
+      { prisms: 1, receptors: ['red'], offset: 0 },
+      { prisms: 1, receptors: ['blue'], offset: 0 },
+      { prisms: 2, receptors: ['red', 'blue'], offset: 1.5 },
+      { prisms: 2, receptors: ['green', 'violet'], offset: 1.5 },
+      { prisms: 3, receptors: ['red', 'green', 'blue'], offset: 2.5 },
+      { prisms: 3, receptors: ['red', 'blue', 'violet'], offset: 2.5 },
+      { prisms: 4, receptors: ['red', 'green', 'blue', 'violet'], offset: 3.5 },
+    ];
+    
+    // Build level
+    function buildLevel(levelNum) {
+      // Clear existing
+      state.prisms.forEach(p => scene.remove(p));
+      state.receptors.forEach(r => scene.remove(r));
+      state.beams.forEach(b => scene.remove(b));
+      state.prisms = [];
+      state.receptors = [];
+      state.beams = [];
+      
+      const config = levels[Math.min(levelNum - 1, levels.length - 1)];
+      
+      // Create light source
+      const lightSource = createLightSource();
+      scene.add(lightSource);
+      state.lightSource = lightSource;
+      
+      // Initial white beam
+      const whiteBeam = createBeam(
+        lightSource.position.clone(),
+        new THREE.Vector3(1, 0, 0),
+        COLORS.white
+      );
+      scene.add(whiteBeam);
+      state.beams.push(whiteBeam);
+      state.beamOrigins = [{
+        start: lightSource.position.clone(),
+        direction: new THREE.Vector3(1, 0, 0),
+        color: COLORS.white
+      }];
+      
+      // Create prisms along the path
+      for (let i = 0; i < config.prisms; i++) {
+        const prism = createPrism();
+        prism.position.set(-3 + i * 3, 0, 0);
+        prism.rotation.z = Math.PI / 6 * (i % 2 === 0 ? 1 : -1);
+        prism.userData.baseRotation = prism.rotation.z;
+        prism.userData.index = i;
+        scene.add(prism);
+        state.prisms.push(prism);
+      }
+      
+      // Create receptors
+      const spacing = 4 / (config.receptors.length + 1);
+      for (let i = 0; i < config.receptors.length; i++) {
+        const receptor = createReceptor(config.receptors[i]);
+        receptor.position.set(6, -2 + (i - config.receptors.length/2 + 0.5) * 2, 0);
+        scene.add(receptor);
+        state.receptors.push(receptor);
+      }
+      
+      document.getElementById('level').textContent = `LEVEL ${levelNum}`;
+    }
+    
+    // Calculate light paths
+    function calculateLightPaths() {
+      if (!state.beamOrigins) return;
+      
+      // Remove old colored beams
+      state.beams.forEach((b, i) => {
+        if (i > 0) scene.remove(b);
+      });
+      state.beams = [state.beams[0]];
+      
+      let paths = [...state.beamOrigins];
+      
+      // Process each prism
+      for (const prism of state.prisms) {
+        const newPaths = [];
+        
+        for (const path of paths) {
+          // Check if beam hits prism
+          const prismPos = prism.position.clone();
+          const toPrism = prismPos.clone().sub(path.start);
+          const dist = toPrism.length();
+          const dot = toPrism.normalize().dot(path.direction);
+          
+          if (dot > 0.9 && dist < 5 && dist > 0.5) {
+            // Beam hits prism - split into colors
+            const colors = ['red', 'green', 'blue', 'violet'];
+            const baseAngle = prism.rotation.z;
+            
+            // Create refracted beams at different angles
+            colors.forEach((color, ci) => {
+              const angleOffset = (ci - 1.5) * 0.4;
+              const newDir = new THREE.Vector3(
+                Math.cos(baseAngle + angleOffset),
+                Math.sin(baseAngle + angleOffset) * 0.3,
+                0
+              ).normalize();
+              
+              const beam = createBeam(prismPos.clone(), newDir, COLORS[color]);
+              scene.add(beam);
+              state.beams.push(beam);
+              newPaths.push({
+                start: prismPos.clone(),
+                direction: newDir,
+                color: COLORS[color],
+                colorName: color
+              });
+            });
+          } else {
+            // Continue straight
+            newPaths.push(path);
+          }
+        }
+        
+        paths = newPaths;
+      }
+      
+      // Check receptor hits
+      state.receptors.forEach(receptor => {
+        receptor.userData.active = false;
+        receptor.material.emissiveIntensity = 0.3;
+      });
+      
+      for (const path of paths) {
+        for (const receptor of state.receptors) {
+          const toReceptor = receptor.position.clone().sub(path.start);
+          const dist = toReceptor.length();
+          const dot = toReceptor.normalize().dot(path.direction);
+          
+          if (dot > 0.95 && dist < 3 && path.colorName === receptor.userData.colorName) {
+            receptor.userData.active = true;
+            receptor.material.emissiveIntensity = 1.5;
+            
+            // Visual connection
+            const connGeom = new THREE.BufferGeometry().setFromPoints([
+              path.start,
+              receptor.position.clone()
+            ]);
+            const connMat = new THREE.LineBasicMaterial({
+              color: path.color,
+              transparent: true,
+              opacity: 0.6
+            });
+            const conn = new THREE.Line(connGeom, connMat);
+            scene.add(conn);
+            state.beams.push(conn);
+          }
+        }
+      }
+      
+      // Check win condition
+      checkWinCondition();
+    }
+    
+    function checkWinCondition() {
+      const allActive = state.receptors.every(r => r.userData.active);
+      
+      if (allActive && state.isPlaying) {
+        // Win!
+        playWinSound();
+        
+        // Visual celebration
+        state.receptors.forEach(r => {
+          const originalIntensity = r.material.emissiveIntensity;
+          r.material.emissiveIntensity = 3;
+          setTimeout(() => {
+            r.material.emissiveIntensity = originalIntensity;
+          }, 200);
+        });
+        
+        setTimeout(() => {
+          document.getElementById('successOverlay').classList.add('visible');
+        }, 500);
+      }
+    }
+    
+    // Input handling
+    function updateMouse(e) {
+      const rect = canvas.getBoundingClientRect();
+      state.mousePos.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      state.mousePos.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+    
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerUp);
+    
+    function onPointerDown(e) {
+      if (!state.isPlaying) return;
+      
+      updateMouse(e);
+      state.raycaster.setFromCamera(state.mousePos, camera);
+      
+      const intersects = state.raycaster.intersectObjects(state.prisms);
+      if (intersects.length > 0) {
+        state.selectedPrism = intersects[0].object;
+        state.isDragging = true;
+        canvas.style.cursor = 'grabbing';
+      }
+    }
+    
+    function onPointerMove(e) {
+      if (!state.isPlaying) return;
+      
+      updateMouse(e);
+      
+      if (state.selectedPrism && state.isDragging) {
+        // Rotate prism based on mouse movement
+        const deltaX = e.movementX * 0.02;
+        state.selectedPrism.rotation.z += deltaX;
+        calculateLightPaths();
+      } else {
+        // Hover check
+        state.raycaster.setFromCamera(state.mousePos, camera);
+        const intersects = state.raycaster.intersectObjects(state.prisms);
+        canvas.style.cursor = intersects.length > 0 ? 'grab' : 'default';
+      }
+    }
+    
+    function onPointerUp() {
+      state.selectedPrism = null;
+      state.isDragging = false;
+      canvas.style.cursor = 'default';
+    }
+    
+    // Music
+    let musicStarted = false;
+    
+    async function startMusic() {
+      if (musicStarted || typeof Tone === 'undefined') return;
+      musicStarted = true;
+      
+      try {
+        await Tone.start();
+        
+        const synth = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: 'sine' },
+          envelope: {
+            attack: 0.5,
+            decay: 0.3,
+            sustain: 0.6,
+            release: 2.5
+          },
+          volume: -20
+        }).toDestination();
+        
+        const reverb = new Tone.Reverb({ decay: 5, wet: 0.6 }).toDestination();
+        synth.connect(reverb);
+        
+        // Ethereal crystalline notes
+        const notes = ['C5', 'E5', 'G5', 'B5', 'D6'];
+        let i = 0;
+        
+        const loop = new Tone.Loop((time) => {
+          synth.triggerAttackRelease(notes[i % notes.length], '4n', time);
+          i++;
+        }, '2n');
+        
+        Tone.Transport.bpm.value = 55;
+        loop.start(0);
+        Tone.Transport.start();
+        
+      } catch(e) {
+        console.warn('Music unavailable:', e);
+      }
+    }
+    
+    function playWinSound() {
+      if (typeof Tone === 'undefined') return;
+      try {
+        const synth = new Tone.Synth({
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.1, decay: 0.5, sustain: 0.3, release: 1 }
+        }).toDestination();
+        
+        const reverb = new Tone.Reverb({ decay: 3, wet: 0.5 }).toDestination();
+        synth.connect(reverb);
+        
+        synth.triggerAttackRelease('C6', '8n');
+        setTimeout(() => synth.triggerAttackRelease('E6', '8n'), 100);
+        setTimeout(() => synth.triggerAttackRelease('G6', '4n'), 200);
+      } catch(e) {}
+    }
+    
+    // Start screen
+    const startScreen = document.getElementById('startScreen');
+    const ui = document.getElementById('ui');
+    const successOverlay = document.getElementById('successOverlay');
+    
+    startScreen.addEventListener('pointerdown', () => {
+      startMusic();
+      startGame();
+    }, { once: true });
+    
+    function startGame() {
+      startScreen.classList.add('hidden');
+      ui.classList.add('visible');
+      state.isPlaying = true;
+      state.level = 1;
+      buildLevel(state.level);
+    }
+    
+    // Next level button
+    document.querySelector('.nextBtn').addEventListener('pointerdown', () => {
+      successOverlay.classList.remove('visible');
+      state.level++;
+      buildLevel(state.level);
+    });
+    
+    // Resize handler
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      applyCameraForAspect();
+    });
+    
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      const t = state.clock.getElapsedTime();
+      
+      // Idle animations for prisms
+      state.prisms.forEach((prism, i) => {
+        if (!state.isDragging || prism !== state.selectedPrism) {
+          prism.rotation.z = prism.userData.baseRotation + Math.sin(t * 0.5 + i) * 0.1;
+        }
+        prism.position.y = Math.sin(t * 1.2 + i * 0.5) * 0.1;
+      });
+      
+      // Receptor pulse
+      state.receptors.forEach((receptor, i) => {
+        if (!receptor.userData.active) {
+          receptor.material.emissiveIntensity = 0.3 + Math.sin(t * 2 + i) * 0.15;
+        }
+      });
+      
+      // Light source pulse
+      if (state.lightSource) {
+        state.lightSource.material.emissiveIntensity = 0.8 + Math.sin(t * 1.5) * 0.2;
+      }
+      
+      renderer.render(scene, camera);
+    }
+    
+    // Initial build for start screen
+    buildLevel(1);
+    animate();
+  </script>
+</body>
+</html>
